@@ -10,7 +10,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 # === Load GeoTIFF ===
-tif_path = r"C:\Users\Jeevan.Somanna\Downloads\swi_combined_offset_005_norm.tif"
+tif_path = r"D:\Practise Project\GreenHack\assets\green_model.tif"
 with rasterio.open(tif_path) as src:
     img = src.read(1)
     img = np.where(img == src.nodata, np.nan, img)
