@@ -36,5 +36,7 @@ Design grid infrastructure solutions that:
 
 1. Clone the repo:
    ```bash
-   git clone [[https://github.com/your-username/greenhack-2025-ceps.git]
+   git clone https://github.com/your-username/greenhack-2025-ceps.git
+   cd greenhack-2025-ceps
+
    cd greenhack-2025-ceps
