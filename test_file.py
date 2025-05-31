@@ -160,16 +160,36 @@ app.layout = dbc.Container([
             ])
         ]),
 
+        # dcc.Tab(label='Analytics', value='tab-analytics', children=[
+        #     html.Br(),
+        #     html.H4("📊 Future Analytics Dashboard", className="text-center"),
+        #     html.P("This space can be used for load forecasts, regional metrics, simulation results, etc.",
+        #            className="text-center text-muted")
+        # ])
         dcc.Tab(label='Analytics', value='tab-analytics', children=[
             html.Br(),
             html.H4("📊 Future Analytics Dashboard", className="text-center"),
-            html.P("This space can be used for load forecasts, regional metrics, simulation results, etc.",
-                   className="text-center text-muted")
+            # html.P("This space can be used for load forecasts, regional metrics, simulation results, etc.",className="text-center text-muted"),
+
+            html.Hr(),
+
+            dbc.Row([
+                dbc.Col([
+                    html.H5("🖼️ Current Grid", className="text-center"),
+                    html.Img(src='/assets/grid-image.jpeg', style={'width': '100%', 'border': '2px solid #444'}),
+                ], md=6),
+
+                dbc.Col([
+                    html.H5("🗺️ Model Prediction", className="text-center"),
+                    html.Img(src='/assets/green_model_image.jpeg', style={'width': '100%', 'border': '2px solid #444'}),
+                ], md=6)
+            ])
         ])
     ]),
 
-    # Hidden store
-    dcc.Store(id='hotspots-store', data={'hotspots': hotspots})
+# Hidden store
+    dcc.Store(id='hotspots-store', data={'hotspots': hotspots}),
+    dcc.Store(id='positions-store', data={'positions': positions})
 ], fluid=True)
 
 
@@ -181,9 +201,10 @@ app.layout = dbc.Container([
     State('hotspot-lat', 'value'),
     State('hotspot-lon', 'value'),
     State('hotspots-store', 'data'),
+    State('positions-store', 'data'),
     prevent_initial_call=True
 )
-def manage_hotspots(add_clicks, clear_clicks, lat, lon, data):
+def manage_hotspots(add_clicks, clear_clicks, lat, lon, data, pos):
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -194,9 +215,19 @@ def manage_hotspots(add_clicks, clear_clicks, lat, lon, data):
     if ctx.triggered[0]['prop_id'] == 'add-hotspot.n_clicks':
         if lat is None or lon is None:
             raise PreventUpdate
-        data['hotspots'].append((float(lon), float(lat)))
+        new_hotspot = {
+            "id": f"hotspot_{len(data['hotspots'])}",
+            "x": float(lon),
+            "y": float(lat),
+            "type": "hotspot",
+            "name": f"User Hotspot {len(data['hotspots'])}"
+        }
+        data['hotspots'].append(new_hotspot)
 
-    badges = [dbc.Badge(f"({lon:.2f}, {lat:.2f})", color="danger", className="me-1") for lon, lat in data['hotspots']]
+    badges = [
+        dbc.Badge(f"{h['name']} ({h['x']:.2f}, {h['y']:.2f})", color="danger", className="me-1")
+        for h in data['hotspots']
+    ]
     return data, html.Div([html.Span("Current hotspots: ", className="fw-bold"), *badges])
 
 @app.callback(
@@ -209,63 +240,65 @@ def update_graph(n, model, hotspots_data):
     if not n:
         return go.Figure()
 
-    current_hotspots = hotspots_data['hotspots']
+    all_nodes = stations + hotspots_data['hotspots']
     G = nx.Graph()
-    for s in stations:
+    current_hotspots = hotspots_data['hotspots'];
+    xy_hotspots = [(h['x'], h['y']) for h in current_hotspots]
+    for s in all_nodes:
+        node_id = s['id']
         x, y = s['x'], s['y']
-        if is_node_in_hotspot(x, y, current_hotspots):
+        if is_node_in_hotspot(x, y,xy_hotspots):
             continue
-        G.add_node(s['id'], pos=(x, y), type=s['type'], name=s['name'])
+        G.add_node(node_id, pos=(x, y), type=s['type'], name=s['name'])
 
     for i in G.nodes:
         for j in G.nodes:
             if i != j:
-                G.add_edge(i, j, weight=dist(i, j))
+                ax, ay = G.nodes[i]['pos']
+                bx, by = G.nodes[j]['pos']
+                G.add_edge(i, j, weight=math.hypot(ax - bx, ay - by))
 
-    if model == 'mst':
-        graph_to_draw = nx.minimum_spanning_tree(G.copy())
-        model_name = "MST"
-    elif model == 'slime':
+    if model == 'slime':
         base_tree = nx.minimum_spanning_tree(G.copy())
         graph_to_draw = add_secondary_edges(base_tree, G, max_extra=0)
         model_name = "Slime Mold-Inspired Model"
     else:
         graph_to_draw = G.copy()
-        model_name = "Naive Greedy Path"
+        model_name = "Full Network"
 
     fig = go.Figure()
 
     for u, v in graph_to_draw.edges():
-        lon0, lat0 = positions[u]
-        lon1, lat1 = positions[v]
+        lon0, lat0 = G.nodes[u]['pos']
+        lon1, lat1 = G.nodes[v]['pos']
         fig.add_trace(go.Scattermapbox(
             lat=[lat0, lat1],
             lon=[lon0, lon1],
             mode="lines",
             line=dict(color="gray", width=2),
-            hoverinfo="none"
+            hoverinfo="none",
         ))
 
     for node in G.nodes():
-        lon, lat = positions[node]
+        lon, lat = G.nodes[node]['pos']
+        color = type_color.get(G.nodes[node]['type'], "orange")
         fig.add_trace(go.Scattermapbox(
             lat=[lat],
             lon=[lon],
             mode="markers+text",
             marker=dict(size=10, color=type_color[types[node]]),
-            text=[names[node]],
-            textposition="top center",
-            name=types[node]
-        ))
-
-    for lon, lat in current_hotspots:
+                        text=[names[node]],
+                        textposition="top center",
+                        name=types[node]
+                    ))
+    for lon, lat in xy_hotspots:
         fig.add_trace(go.Scattermapbox(
             lat=[lat],
             lon=[lon],
             mode="markers",
             marker=dict(size=30, color='rgba(255,0,0,0.3)', symbol='circle'),
             hoverinfo='skip',
-            showlegend=False,
+            showlegend=True,
             name="Hotspot"
         ))
 
@@ -279,7 +312,7 @@ def update_graph(n, model, hotspots_data):
         margin=dict(l=0, r=0, t=0, b=0),
         showlegend=False,
         height=700,
-        title=f"Electric Grid Layout: {model_name} (Hotspots: {len(current_hotspots)})"
+        title=f"Electric Grid Layout: {model_name} (Hotspots: {len(hotspots_data['hotspots'])})"
     )
 
     return fig
