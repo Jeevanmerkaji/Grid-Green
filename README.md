@@ -12,7 +12,8 @@ We assess environmental impacts, identify **eco-friendly transmission corridors*
 - [x] Python  
 - [x] Plotly  
 - [x] Remote Sensing (Sentinel-2, etc.)  
-- [x] Machine Learning  
+- [x] Machine Learning
+- [x] QGIS  
 
 ## 📡 Data Sources
 - Sentinel-2 (Copernicus)
@@ -20,6 +21,11 @@ We assess environmental impacts, identify **eco-friendly transmission corridors*
 - ÚSES (Territorial System of Ecological Stability)
 - ZABAGED (Fundamental Base of Geographic Data)
 - ČEPS internal datasets (where applicable)
+- ZABAGED planimetry
+- Soil Water Index
+- Surface Soil Moisture
+- Gap-filled Fractional Snow Cover
+  
 
 ---
 
